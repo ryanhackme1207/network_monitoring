@@ -1,4 +1,4 @@
-// Real-Time MikroTik Physical Port Link Telemetry & Alert Controller
+// Real-Time MikroTik & GPON Network Control & Topology Controller
 const ZABBIX_CONSOLE_PATH = '/zabbix/';
 
 const INTERFACE_DEFS = [
@@ -52,9 +52,77 @@ const INTERFACE_DEFS = [
     }
 ];
 
+const NODE_CATALOG = {
+    hq: {
+        title: "Kuala Lumpur HQ (Central OLT)",
+        subtitle: "MikroTik hEX / Primary Core OLT Node",
+        location: "Kuala Lumpur HQ Data Center",
+        type: "MikroTik RouterOS / Core PON OLT",
+        ip: "192.168.31.219",
+        rx: "-18.4 dBm",
+        tx: "+2.8 dBm",
+        temp: "50.0 °C",
+        status: "🟢 ONLINE (LIVE ZABBIX SNMP)",
+        isLive: true
+    },
+    penang: {
+        title: "Penang GPON Node (OLT-01)",
+        subtitle: "Northern Regional Substation",
+        location: "Penang Regional Hub",
+        type: "GPON 16-Port OLT",
+        ip: "10.10.10.1",
+        rx: "-19.2 dBm",
+        tx: "+2.5 dBm",
+        temp: "42.5 °C",
+        status: "🟢 ONLINE",
+        isLive: false,
+        mockPorts: [
+            { name: "PON 1/1 (Bayan Lepas)", status: "🟢 LINK UP", detail: "1.25 Gbps / -18.2 dBm" },
+            { name: "PON 1/2 (Georgetown)", status: "🟢 LINK UP", detail: "1.25 Gbps / -19.4 dBm" },
+            { name: "PON 1/3 (Butterworth)", status: "🟢 LINK UP", detail: "1.25 Gbps / -20.1 dBm" },
+            { name: "Uplink SFP+ 10G", status: "🟢 LINK UP", detail: "10 Gbps Trunk" }
+        ]
+    },
+    johor: {
+        title: "Johor Bahru PON Node (OLT-02)",
+        subtitle: "Southern Regional Hub / Splitter B",
+        location: "Johor Bahru Substation",
+        type: "GPON 8-Port OLT",
+        ip: "10.20.20.1",
+        rx: "-24.1 dBm",
+        tx: "+1.8 dBm",
+        temp: "48.2 °C",
+        status: "🟡 ATTENUATION WARN",
+        isLive: false,
+        mockPorts: [
+            { name: "PON 2/1 (Skudai)", status: "🟡 ATTENUATION WARN", detail: "Optical Attenuation High (-24.1 dBm)" },
+            { name: "PON 2/2 (Iskandar)", status: "🟢 LINK UP", detail: "1.25 Gbps / -19.0 dBm" },
+            { name: "Uplink 10G", status: "🟢 LINK UP", detail: "10 Gbps Trunk" }
+        ]
+    },
+    sabah: {
+        title: "Sabah GPON Extension (OLT-03)",
+        subtitle: "East Malaysia Regional Node",
+        location: "Kota Kinabalu Hub",
+        type: "GPON 8-Port OLT Extension",
+        ip: "10.30.30.1",
+        rx: "-17.8 dBm",
+        tx: "+3.1 dBm",
+        temp: "39.1 °C",
+        status: "🟢 ONLINE",
+        isLive: false,
+        mockPorts: [
+            { name: "PON 3/1 (Kota Kinabalu)", status: "🟢 LINK UP", detail: "1.25 Gbps / -17.8 dBm" },
+            { name: "PON 3/2 (Inanam)", status: "🟢 LINK UP", detail: "1.25 Gbps / -18.5 dBm" },
+            { name: "Uplink SFP+ 10G", status: "🟢 LINK UP", detail: "10 Gbps Trunk" }
+        ]
+    }
+};
+
 let latencyChart = null;
 let isSimulationActive = false;
 let previousStates = {};
+let currentLatestItems = [];
 
 const historyData = {
     labels: [],
@@ -65,19 +133,123 @@ document.addEventListener('DOMContentLoaded', () => {
     initAuth();
     initClock();
     initChart();
-    
-    // Set Zabbix Native Console direct link on same domain (/zabbix/)
+    initTabSwitcher();
+    initModalHandlers();
+
+    // Set Zabbix Native Console direct link
     const zabbixLinkBtn = document.getElementById('btn-zabbix-link');
     if (zabbixLinkBtn) {
         zabbixLinkBtn.href = ZABBIX_CONSOLE_PATH;
     }
 
-    // High performance real-time polling every 1.5 seconds directly via /api/
+    // High performance real-time polling every 1.5 seconds
     fetchNetworkData();
     setInterval(fetchNetworkData, 1500);
 
     document.getElementById('btn-simulate-alert').addEventListener('click', toggleSimulatedOutage);
 });
+
+// View Tab Switcher Logic
+function initTabSwitcher() {
+    const tabTopology = document.getElementById('tab-btn-topology');
+    const tabPorts = document.getElementById('tab-btn-ports');
+
+    const viewTopology = document.getElementById('view-topology');
+    const viewPorts = document.getElementById('view-ports');
+
+    tabTopology.addEventListener('click', () => {
+        tabTopology.classList.add('active');
+        tabPorts.classList.remove('active');
+
+        viewTopology.style.display = 'block';
+        viewPorts.style.display = 'none';
+    });
+
+    tabPorts.addEventListener('click', () => {
+        tabPorts.classList.add('active');
+        tabTopology.classList.remove('active');
+
+        viewTopology.style.display = 'none';
+        viewPorts.style.display = 'grid';
+    });
+}
+
+function initModalHandlers() {
+    const closeBtn = document.getElementById('btn-close-node-modal');
+    const modal = document.getElementById('node-modal');
+
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+
+function openNodeModal(nodeKey) {
+    const node = NODE_CATALOG[nodeKey];
+    if (!node) return;
+
+    document.getElementById('node-modal-title').innerText = node.title;
+    document.getElementById('node-modal-subtitle').innerText = node.subtitle;
+    document.getElementById('node-modal-location').innerText = node.location;
+    document.getElementById('node-modal-type').innerText = node.type;
+    document.getElementById('node-modal-ip').innerText = node.ip;
+    document.getElementById('node-modal-rx').innerText = node.rx;
+    document.getElementById('node-modal-tx').innerText = node.tx;
+    document.getElementById('node-modal-temp').innerText = node.temp;
+    document.getElementById('node-modal-status').innerText = node.status;
+
+    const portsContainer = document.getElementById('node-modal-ports');
+    portsContainer.innerHTML = '';
+
+    if (node.isLive) {
+        // Render real-time Zabbix SNMP ports for live MikroTik / HQ node
+        INTERFACE_DEFS.forEach(def => {
+            const operItem = currentLatestItems.find(i => 
+                (i.key_ && i.key_.includes(def.exactKey)) ||
+                (i.name && i.name.toLowerCase().includes('operational status') && i.name.toLowerCase().includes(def.keyMatch.toLowerCase()))
+            );
+
+            let isDown = operItem ? operItem.lastvalue === "2" : false;
+            if (isSimulationActive && def.keyMatch === "ether1") isDown = true;
+
+            const item = document.createElement('div');
+            item.className = 'modal-port-item';
+            item.innerHTML = `
+                <div>
+                    <strong>${def.name}</strong>
+                    <span style="color: #9CA3AF; font-size: 0.75rem; display: block;">${def.description}</span>
+                </div>
+                <span class="badge-status ${isDown ? 'down' : 'up'}">
+                    ${isDown ? '❌ PORT UNPLUGGED' : '🟢 LINK ACTIVE'}
+                </span>
+            `;
+            portsContainer.appendChild(item);
+        });
+    } else if (node.mockPorts) {
+        node.mockPorts.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'modal-port-item';
+            const isWarn = p.status.includes('WARN');
+            item.innerHTML = `
+                <div>
+                    <strong>${p.name}</strong>
+                    <span style="color: #9CA3AF; font-size: 0.75rem; display: block;">${p.detail}</span>
+                </div>
+                <span class="badge-status ${isWarn ? 'down' : 'up'}" style="${isWarn ? 'background: rgba(245, 158, 11, 0.15); color: #F59E0B; border-color: rgba(245, 158, 11, 0.3);' : ''}">
+                    ${p.status}
+                </span>
+            `;
+            portsContainer.appendChild(item);
+        });
+    }
+
+    document.getElementById('node-modal').style.display = 'flex';
+}
 
 // Authentication System Logic
 function initAuth() {
@@ -189,6 +361,7 @@ async function fetchNetworkData() {
         const data = await res.json();
 
         if (data.success && data.items && data.items.length > 0) {
+            currentLatestItems = data.items;
             renderDashboard(data);
             document.getElementById('zabbix-sync-pill').className = 'status-pill online';
             document.getElementById('sync-status-text').innerText = '⚡ UNIFIED REALTIME LIVE SYNC';
@@ -218,6 +391,7 @@ function renderCloudDemoDashboard() {
         problems: []
     };
 
+    currentLatestItems = simulatedData.items;
     renderDashboard(simulatedData);
 }
 
@@ -423,7 +597,7 @@ function showToast(title, message) {
         </div>
         <div class="toast-body">
             <h4>${title}</h4>
-            <p>${message}</p>
+            <p>[ALERT] ${title}: ${message}</p>
         </div>
     `;
 
