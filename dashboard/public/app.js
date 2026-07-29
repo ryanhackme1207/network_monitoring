@@ -1,4 +1,6 @@
 // Real-Time MikroTik Physical Port Link Telemetry & Alert Controller
+const CLOUDFLARE_TUNNEL_URL = 'https://comedy-hang-encourage-imperial.trycloudflare.com';
+
 const INTERFACE_DEFS = [
     {
         keyMatch: "ether1",
@@ -39,7 +41,6 @@ const INTERFACE_DEFS = [
 
 let latencyChart = null;
 let isSimulationActive = false;
-let isCloudEnv = false;
 const historyData = {
     labels: [],
     pingData: []
@@ -102,30 +103,36 @@ function initChart() {
 }
 
 async function fetchNetworkData() {
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
+    // 1. Try local endpoint first, fallback to Cloudflare Tunnel URL if on Netlify cloud
+    const endpoints = ['/api/network-status', `${CLOUDFLARE_TUNNEL_URL}/api/network-status`];
 
-        const res = await fetch('/api/network-status', { signal: controller.signal });
-        clearTimeout(timeoutId);
-        const data = await res.json();
+    for (const url of endpoints) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-        if (data.success) {
-            renderDashboard(data);
-            document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-            document.getElementById('sync-status-text').innerText = 'SNMP TELEMETRY ACTIVE';
-            return;
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            const data = await res.json();
+
+            if (data.success) {
+                renderDashboard(data);
+                document.getElementById('zabbix-sync-pill').className = 'status-pill online';
+                document.getElementById('sync-status-text').innerText = 'REALTIME MIKROTIK LIVE';
+                return;
+            }
+        } catch (e) {
+            // Continue to next endpoint fallback
         }
-    } catch (e) {
-        // Fallback for Netlify Cloud Environment
-        isCloudEnv = true;
-        renderCloudDemoDashboard();
     }
+
+    // Backup rendering if tunnel is updating
+    renderCloudDemoDashboard();
 }
 
 function renderCloudDemoDashboard() {
     document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-    document.getElementById('sync-status-text').innerText = 'CLOUD HYBRID MONITORING';
+    document.getElementById('sync-status-text').innerText = 'CLOUD BACKUP TELEMETRY';
 
     const simulatedData = {
         items: [
@@ -327,11 +334,7 @@ function toggleSimulatedOutage() {
         );
     }
 
-    if (isCloudEnv) {
-        renderCloudDemoDashboard();
-    } else {
-        fetchNetworkData();
-    }
+    fetchNetworkData();
 }
 
 function showToast(title, message) {
