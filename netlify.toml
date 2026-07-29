@@ -2,6 +2,21 @@
   publish = "dashboard/public"
   command = "echo 'Build Complete: Static Dashboard Ready for Deployment'"
 
+# Proxy /api/* to local backend API tunnel on same domain
+[[redirects]]
+  from = "/api/*"
+  to = "https://comedy-hang-encourage-imperial.trycloudflare.com/api/:splat"
+  status = 200
+  force = true
+
+# Proxy /zabbix/* to local Zabbix web console tunnel on same domain
+[[redirects]]
+  from = "/zabbix/*"
+  to = "https://string-bridal-elimination-invalid.trycloudflare.com/:splat"
+  status = 200
+  force = true
+
+# SPA single-page routing
 [[redirects]]
   from = "/*"
   to = "/index.html"

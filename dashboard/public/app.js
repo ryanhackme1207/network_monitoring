@@ -1,6 +1,5 @@
 // Real-Time MikroTik Physical Port Link Telemetry & Alert Controller
-const CLOUDFLARE_TUNNEL_URL = 'https://comedy-hang-encourage-imperial.trycloudflare.com';
-const ZABBIX_WEB_TUNNEL_URL = 'https://string-bridal-elimination-invalid.trycloudflare.com';
+const ZABBIX_CONSOLE_PATH = '/zabbix/';
 
 const INTERFACE_DEFS = [
     {
@@ -67,13 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initChart();
     
-    // Set Zabbix Native Console direct link
+    // Set Zabbix Native Console direct link on same domain (/zabbix/)
     const zabbixLinkBtn = document.getElementById('btn-zabbix-link');
     if (zabbixLinkBtn) {
-        zabbixLinkBtn.href = ZABBIX_WEB_TUNNEL_URL;
+        zabbixLinkBtn.href = ZABBIX_CONSOLE_PATH;
     }
 
-    // High performance real-time polling every 1.5 seconds
+    // High performance real-time polling every 1.5 seconds directly via /api/
     fetchNetworkData();
     setInterval(fetchNetworkData, 1500);
 
@@ -172,37 +171,31 @@ function initChart() {
 
 async function fetchNetworkData() {
     const timestamp = Date.now();
-    const endpoints = [
-        `${CLOUDFLARE_TUNNEL_URL}/api/network-status?_t=${timestamp}`,
-        `/api/network-status?_t=${timestamp}`
-    ];
+    const url = `/api/network-status?_t=${timestamp}`;
 
-    for (const url of endpoints) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-            const res = await fetch(url, { 
-                signal: controller.signal,
-                cache: 'no-store',
-                mode: 'cors',
-                headers: { 
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache'
-                }
-            });
-            clearTimeout(timeoutId);
-            const data = await res.json();
-
-            if (data.success && data.items && data.items.length > 0) {
-                renderDashboard(data);
-                document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-                document.getElementById('sync-status-text').innerText = '⚡ REALTIME LIVE SNMP SYNC';
-                return;
+        const res = await fetch(url, { 
+            signal: controller.signal,
+            cache: 'no-store',
+            headers: { 
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
             }
-        } catch (e) {
-            // Try next endpoint fallback
+        });
+        clearTimeout(timeoutId);
+        const data = await res.json();
+
+        if (data.success && data.items && data.items.length > 0) {
+            renderDashboard(data);
+            document.getElementById('zabbix-sync-pill').className = 'status-pill online';
+            document.getElementById('sync-status-text').innerText = '⚡ UNIFIED REALTIME LIVE SYNC';
+            return;
         }
+    } catch (e) {
+        // Fallback if needed
     }
 
     renderCloudDemoDashboard();
