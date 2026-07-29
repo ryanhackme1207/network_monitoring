@@ -165,17 +165,17 @@ function initChart() {
 }
 
 async function fetchNetworkData() {
-    // Append timestamp timestamp parameter _t to prevent any browser caching
+    // Append timestamp parameter _t to prevent any browser caching
     const timestamp = Date.now();
     const endpoints = [
-        `/api/network-status?_t=${timestamp}`, 
-        `${CLOUDFLARE_TUNNEL_URL}/api/network-status?_t=${timestamp}`
+        `${CLOUDFLARE_TUNNEL_URL}/api/network-status?_t=${timestamp}`,
+        `/api/network-status?_t=${timestamp}`
     ];
 
     for (const url of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 1800);
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
 
             const res = await fetch(url, { 
                 signal: controller.signal,
@@ -206,7 +206,7 @@ function renderCloudDemoDashboard() {
     const simulatedData = {
         items: [
             { name: "Interface ether1(): Operational status", lastvalue: "1" },
-            { name: "Interface ether2(): Operational status", lastvalue: "1" },
+            { name: "Interface ether2(): Operational status", lastvalue: "2" }, // Updated to 2 (DOWN) to reflect accurate link status
             { name: "Interface ether3(): Operational status", lastvalue: "2" },
             { name: "Interface ether4(): Operational status", lastvalue: "2" },
             { name: "Interface ether5(): Operational status", lastvalue: "2" },

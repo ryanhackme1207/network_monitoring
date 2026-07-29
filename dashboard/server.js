@@ -10,11 +10,17 @@ const ZABBIX_PASS = process.env.ZABBIX_PASS || 'zabbix';
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Disable caching for all API routes
-app.use('/api', (req, res, next) => {
+// Enable CORS and anti-caching headers for Netlify cross-domain access (ryan-sec.dev)
+app.use((req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
     next();
 });
 
@@ -43,14 +49,14 @@ async function getZabbixToken() {
     return null;
 }
 
-// Endpoint to fetch real-time network status with zero latency cache
+// Endpoint to fetch real-time network status
 app.get('/api/network-status', async (req, res) => {
     if (!zabbixToken) {
         await getZabbixToken();
     }
 
     try {
-        // Fetch all monitored items from Zabbix (including physical ifOperStatus)
+        // Fetch all monitored items from Zabbix
         const itemsResp = await fetch(ZABBIX_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
