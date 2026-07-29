@@ -1,0 +1,141 @@
+================================================================================
+         MIKROTIK hEX 系列路由器 ZABBIX 7.0 全套监控与物理端口检测指南
+================================================================================
+作者: Antigravity AI
+日期: 2026-07-29
+项目路径: c:\Users\Acer Nitro 5\Desktop\zabbix_pro\
+
+--------------------------------------------------------------------------------
+第一部分：ZABBIX 7.0 DOCKER 基础设施部署 (HOW TO INSTALL ZABBIX)
+--------------------------------------------------------------------------------
+1.1 Docker Compose 容器配置 (docker-compose.yml)
+   项目目录已包含 docker-compose.yml 配置文件，内置以下 4 个标准容器：
+   - postgres-server: PostgreSQL 15 数据库
+   - zabbix-server: Zabbix Server 7.0 LTS 监控服务端
+   - zabbix-web-nginx: Zabbix Web 前端界面 (基于 Nginx 与 PHP 8.2)
+   - zabbix-agent: Zabbix 本地 Agent 代理
+
+1.2 启动与管理命令 (PowerShell)
+   在项目根目录下，使用以下命令管理 Docker 服务：
+   - 启动 Zabbix 监控系统：
+     docker-compose up -d
+   - 查看运行状态：
+     docker-compose ps
+   - 停止 Zabbix 服务：
+     docker-compose down
+
+1.3 Web 控制台登录信息
+   - Zabbix Web 网址: http://localhost:8080
+   - 默认管理员账号: Admin
+   - 默认管理员密码: zabbix
+
+--------------------------------------------------------------------------------
+第二部分：MIKROTIK hEX 路由器 SNMP 开启配置 (HOW TO SET UP MIKROTIK hEX)
+--------------------------------------------------------------------------------
+在添加至 Zabbix 监控之前，必须在 MikroTik RouterOS 中开启 SNMP 服务：
+
+2.1 方法 A: 通过 SSH 快速命令设置 (连接 IP: 192.168.50.1, 账号: admin)
+   在 Terminal 或 SSH 中运行以下命令：
+   
+   /snmp set enabled=yes contact="ryanlai@freshtel.my" location="Home router"
+   /snmp community set [ find default=yes ] name=public addresses=0.0.0.0/0 security=none read-access=yes
+
+2.2 方法 B: 通过 WinBox / WebFig 图形界面设置
+   1) 打开 WinBox，登录 MikroTik 路由器。
+   2) 点击左侧菜单: SNMP -> 勾选 [Enabled]。
+   3) 设置 Contact Info: ryanlai@freshtel.my, Location: Home router。
+   4) 点击 [Communities] 按钮 -> 打开 public 规则:
+      - Name: public
+      - Security: none
+      - Read Access: 勾选 [X]
+      - Write Access: 不勾选 [ ]
+   5) 点击 [Apply] -> [OK] 保存。
+
+--------------------------------------------------------------------------------
+第三部分：在 ZABBIX 中添加 MIKROTIK hEX 主机 (HOW TO ADD MIKROTIK HOST)
+--------------------------------------------------------------------------------
+3.1 登录 Zabbix 控制台
+   打开浏览器访问 http://localhost:8080，使用 Admin / zabbix 登录。
+
+3.2 添加主机 (Create Host)
+   1) 点击左侧菜单: Data collection (数据收集) -> Hosts (主机)。
+   2) 点击右上角蓝色按钮: Create host (创建主机)。
+   3) 填写 Host 选项卡参数:
+      - Host name: MikroTik-hEX
+      - Templates: 点击 Select -> 搜索并勾选 "Mikrotik by SNMP" 模板 -> 点击 Select。
+      - Host groups: 选择 "Templates/Network devices"。
+      - Interfaces: 点击 Add 下拉菜单 -> 选择 "SNMP"。
+        * IP address: 192.168.30.1 (或 192.168.50.1)
+        * Port: 161
+        * SNMP version: SNMPv2
+        * SNMP community: public (填入暗号 {$SNMP_COMMUNITY})
+   4) 点击页面最下方 [Add] 保存。
+
+3.3 验证 SNMP 连通状态
+   回到 Data collection -> Hosts 列表，观察 MikroTik-hEX 机器右侧的图标。
+   图标显示为亮绿色的 🟢 [SNMP]，代表 Zabbix 已成功连通路由器！
+
+--------------------------------------------------------------------------------
+第四部分：如何详细配置物理网口在线与离线检测 (DETAILED STEP-BY-STEP PORT SETUP)
+--------------------------------------------------------------------------------
+4.1 技术原理说明 (解决 Ping 误判的核心知识)
+   - 【误判原因】：ICMP Ping 检测的是路由器的 IP。即使物理网口（如 ether2 或 ether5）拔掉网线，
+     只要路由器开机，其 CPU 仍会在内核层自行响应 IP Ping，导致系统误判端口“Online”。
+   - 【正确方案】：使用 SNMP 硬件底层物理链路状态 ifOperStatus（Interface Operational Status）：
+     * ifOperStatus = 1 (UP)   --> 🟢 物理网线已插入 (Link Connected / Carrier Active)
+     * ifOperStatus = 2 (DOWN) --> 🔴 物理网线已拔出 (Unplugged / No Carrier)
+
+4.2 步骤 1：开启 Zabbix 接口自动发现规则 (Low Level Discovery - LLD)
+   1) 登录 Zabbix Web 控制台 (http://localhost:8080)。
+   2) 依次点击: Data collection (数据收集) ➔ Hosts (主机)。
+   3) 找到 MikroTik-hEX 主机，在同一行点击 "Discovery rules" (自动发现规则)。
+   4) 检查 "Network interfaces discovery" 规则状态是否为 [Enabled] (已启用)。
+   5) 【提示】：若要立刻刷新网口列表，可点击该规则右侧的 [Check now] (立即检查) 按钮。
+   6) 系统会自动识别路由器的每个物理端口，并生成以下监控项 (Items)：
+      - Interface ether1(): Operational status  (外网端口)
+      - Interface ether2(): Operational status  (802.1x 端口)
+      - Interface ether3(): Operational status  (备用端口)
+      - Interface ether4(): Operational status  (VLAN 30 端口)
+      - Interface ether5(): Operational status  (PPPoE 端口)
+      - Interface bridgeLocal(defconf): Operational status (主 Switch Bridge)
+
+4.3 步骤 2：创建物理拔网线告警触发器 (Trigger Config)
+   1) 点击 Data collection ➔ Hosts ➔ 点击 MikroTik-hEX 主机行的 "Triggers" (触发器)。
+   2) 点击右上角 [Create trigger] (创建触发器) 按钮。
+   3) 填写触发器参数：
+      - Name: Port ether5 Link is DOWN (Physical Cable Unplugged)
+      - Severity: High (高风险 - 红色)
+      - Expression (表达式): last(/MikroTik-hEX/net.if.status[ifOperStatus.6])=2
+        * 含义：当检测到 ether5 网口的值变为 2 (DOWN) 时，立即触发报警。
+      - OK event generation: Expression
+      - Recovery expression: last(/MikroTik-hEX/net.if.status[ifOperStatus.6])=1
+        * 含义：当网线重新插上，状态恢复为 1 (UP) 时，自动消除报警。
+   4) 点击 [Add] 保存触发器。
+
+4.4 步骤 3：在 Latest Data 中实时核对端口物理状态
+   1) 点击左侧菜单: Monitoring (监控) ➔ Latest data (最新数据)。
+   2) Host 输入框输入: MikroTik-hEX。
+   3) Name 关键词输入: Operational status。
+   4) 观察数值与实物对比：
+      - Interface ether1(): Operational status  --> 1 (UP) 🟢 (物理网线已接通)
+      - Interface ether4(): Operational status  --> 1 (UP) 🟢 (物理网线已接通)
+      - Interface bridgeLocal(): Operational status  --> 1 (UP) 🟢 (Bridge 处于激活状态)
+      - Interface ether2(): Operational status  --> 2 (DOWN) 🔴 (802.1x 端口空置/网线拔出)
+      - Interface ether5(): Operational status  --> 2 (DOWN) 🔴 (PPPoE 端口空置/网线拔出)
+
+4.5 步骤 4：配置实时科技风 Web 告警大屏 (Web Alert Dashboard Setup)
+   项目配套开发了专用的实时端口矩阵控制台，可直接调用 Zabbix API 进行极速可视化：
+   1) 进入项目 dashboard 目录：
+      cd "c:\Users\Acer Nitro 5\Desktop\zabbix_pro\dashboard"
+   2) 启动 Web 仪表盘服务器：
+      node server.js
+      (控制台显示: MikroTik Network Dashboard Server running at http://localhost:3000)
+   3) 浏览器打开: http://localhost:3000
+   4) 前端大屏核心逻辑 (`public/app.js`)：
+      - 自动读取 Zabbix 的 `ifOperStatus` 指标。
+      - 若值为 `1`，状态卡片显示亮绿 🟢 "LINK ACTIVE"；若值为 `2`，自动卡片高亮红色 ❌ "PORT UNPLUGGED"。
+      - 右上角提供 [Simulate Interface Down] 按钮，点击后可模拟物理断网并触发动态 Toast 告警弹窗。
+
+================================================================================
+总结: 按照上述 4 个步骤，你已彻底解决 IP Ping 虚假在线的问题，实现了真正的网口硬件拔插检测与实时告警！
+================================================================================

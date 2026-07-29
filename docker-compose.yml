@@ -1,0 +1,89 @@
+services:
+  postgres-server:
+    image: postgres:15-alpine
+    container_name: zabbix-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_password
+      POSTGRES_DB: zabbix
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - zabbix-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zabbix -d zabbix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-7.0-latest
+    container_name: zabbix-server
+    restart: always
+    ports:
+      - "10051:10051"
+      - "162:1162/udp"
+    environment:
+      DB_SERVER_HOST: postgres-server
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_password
+      POSTGRES_DB: zabbix
+      ZBX_STARTPINGERS: 10
+      ZBX_STARTSNMPPOLLER: 10
+      ZBX_LISTENIP: "0.0.0.0"
+    volumes:
+      - zabbix-alertscripts:/usr/lib/zabbix/alertscripts
+      - zabbix-externalscripts:/usr/lib/zabbix/externalscripts
+      - zabbix-mibs:/var/lib/zabbix/mibs
+    depends_on:
+      postgres-server:
+        condition: service_healthy
+    networks:
+      - zabbix-net
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.0-latest
+    container_name: zabbix-web
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      DB_SERVER_HOST: postgres-server
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix_password
+      POSTGRES_DB: zabbix
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: "Asia/Kuala_Lumpur"
+    depends_on:
+      postgres-server:
+        condition: service_healthy
+      zabbix-server:
+        condition: service_started
+    networks:
+      - zabbix-net
+
+  zabbix-agent:
+    image: zabbix/zabbix-agent:alpine-7.0-latest
+    container_name: zabbix-agent
+    restart: always
+    ports:
+      - "10050:10050"
+    environment:
+      ZBX_HOSTNAME: "Zabbix-Server-Host"
+      ZBX_SERVER_HOST: zabbix-server
+    networks:
+      - zabbix-net
+
+networks:
+  zabbix-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  zabbix-alertscripts:
+  zabbix-externalscripts:
+  zabbix-mibs:

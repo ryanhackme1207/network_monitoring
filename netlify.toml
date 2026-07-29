@@ -1,0 +1,8 @@
+[build]
+  publish = "dashboard/public"
+  command = "echo 'Build Complete: Static Dashboard Ready for Deployment'"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

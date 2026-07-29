@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MikroTik Network Control & Alert Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="background-glow"></div>
+
+    <!-- Toast Alert Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="dashboard-wrapper">
+        <!-- Top Navigation Header -->
+        <header class="navbar">
+            <div class="nav-brand">
+                <div class="router-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div>
+                    <h1>MIKROTIK ROUTER MONITOR</h1>
+                    <span class="sub-heading">Real-Time Zabbix 7.0 Telemetry & Alert System</span>
+                </div>
+            </div>
+
+            <div class="nav-actions">
+                <div class="status-pill online" id="zabbix-sync-pill">
+                    <span class="dot"></span>
+                    <span id="sync-status-text">ZABBIX CONNECTED</span>
+                </div>
+
+                <div class="alert-badge-container">
+                    <button class="icon-btn" id="btn-toggle-alerts" title="Alert Notifications">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        <span class="badge" id="active-alert-count">0</span>
+                    </button>
+                </div>
+
+                <button class="btn-primary" id="btn-simulate-alert">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    Simulate Interface Down
+                </button>
+
+                <div class="live-clock" id="live-clock">--:--:--</div>
+            </div>
+        </header>
+
+        <!-- System Overview Banner -->
+        <section class="overview-grid">
+            <div class="metric-card">
+                <div class="card-icon blue">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div class="metric-info">
+                    <span class="label">System Uptime</span>
+                    <h2 id="metric-uptime">Loading...</h2>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="card-icon green">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                </div>
+                <div class="metric-info">
+                    <span class="label">Monitored Interfaces</span>
+                    <h2>5 Interfaces</h2>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="card-icon purple">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                </div>
+                <div class="metric-info">
+                    <span class="label">Avg Latency</span>
+                    <h2 id="metric-latency">1.4 ms</h2>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="card-icon amber">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div class="metric-info">
+                    <span class="label">Network Health Score</span>
+                    <h2 class="text-green" id="metric-health">100% EXCELLENT</h2>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content Area -->
+        <main class="main-layout">
+            <!-- Left Side: Interface Status & Telemetry Cards -->
+            <div class="left-panel">
+                <div class="section-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 29 14.5 14.5 0 0 0 0-29"/><path d="M2 12h20"/></svg>
+                    MikroTik Interface Situation Matrix
+                </div>
+
+                <div class="interfaces-grid" id="interfaces-container">
+                    <!-- Interface Cards will be injected dynamically -->
+                </div>
+            </div>
+
+            <!-- Right Side: Alert Notification Center & Real-Time Analytics -->
+            <div class="right-panel">
+                <!-- Alert Problem Log Card -->
+                <div class="panel-card alerts-panel">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            Live Alert & Problem Feed
+                        </h3>
+                        <span class="alert-count-pill" id="feed-alert-count">0 Active Problems</span>
+                    </div>
+                    <div class="problem-list" id="problem-list">
+                        <div class="empty-state">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            <p>No active network problems reported.</p>
+                            <small>All ethernet ports and IP gateways are operating normally.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Latency Chart Card -->
+                <div class="panel-card chart-panel">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                            Real-Time Ping Latency (ms)
+                        </h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="latencyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
