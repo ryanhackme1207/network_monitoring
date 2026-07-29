@@ -2,8 +2,10 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
-const ZABBIX_URL = 'http://localhost:8080/api_jsonrpc.php';
+const PORT = process.env.PORT || 3000;
+const ZABBIX_URL = process.env.ZABBIX_URL || 'http://localhost:8080/api_jsonrpc.php';
+const ZABBIX_USER = process.env.ZABBIX_USER || 'Admin';
+const ZABBIX_PASS = process.env.ZABBIX_PASS || 'zabbix';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -18,7 +20,7 @@ async function getZabbixToken() {
             body: JSON.stringify({
                 jsonrpc: '2.0',
                 method: 'user.login',
-                params: { username: 'Admin', password: 'zabbix' },
+                params: { username: ZABBIX_USER, password: ZABBIX_PASS },
                 id: 1
             })
         });
