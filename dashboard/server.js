@@ -10,12 +10,13 @@ const ZABBIX_PASS = process.env.ZABBIX_PASS || 'zabbix';
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Enable CORS and anti-caching headers for ultra-fast Netlify cross-domain access (ryan-sec.dev)
+// Strict anti-caching + CORS headers to force Cloudflare CDN & Netlify to bypass edge cache
 app.use((req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Pragma');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
+    res.set('Surrogate-Control', 'no-store');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
     if (req.method === 'OPTIONS') {
@@ -49,7 +50,7 @@ async function getZabbixToken() {
     return null;
 }
 
-// Ultra-lightweight endpoint: returns ONLY the MikroTik port statuses (1KB payload, <15ms response)
+// Ultra-fast zero-cache network status endpoint
 app.get('/api/network-status', async (req, res) => {
     if (!zabbixToken) {
         await getZabbixToken();

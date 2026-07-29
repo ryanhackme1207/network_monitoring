@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
         zabbixLinkBtn.href = ZABBIX_WEB_TUNNEL_URL;
     }
 
-    // Polling every 1.5 seconds with 4.0s timeout allowance
+    // High performance real-time polling every 1.5 seconds
     fetchNetworkData();
     setInterval(fetchNetworkData, 1500);
 
@@ -185,7 +185,11 @@ async function fetchNetworkData() {
             const res = await fetch(url, { 
                 signal: controller.signal,
                 cache: 'no-store',
-                headers: { 'Cache-Control': 'no-cache' }
+                mode: 'cors',
+                headers: { 
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
             });
             clearTimeout(timeoutId);
             const data = await res.json();
@@ -211,9 +215,9 @@ function renderCloudDemoDashboard() {
     const simulatedData = {
         items: [
             { name: "Interface ether1(): Operational status", key_: "net.if.status[ifOperStatus.2]", lastvalue: "1" },
-            { name: "Interface ether2(): Operational status", key_: "net.if.status[ifOperStatus.3]", lastvalue: "2" },
+            { name: "Interface ether2(): Operational status", key_: "net.if.status[ifOperStatus.3]", lastvalue: "1" },
             { name: "Interface ether3(): Operational status", key_: "net.if.status[ifOperStatus.4]", lastvalue: "2" },
-            { name: "Interface ether4(): Operational status", key_: "net.if.status[ifOperStatus.5]", lastvalue: "1" }, // Corrected to 1 (UP) for ether4
+            { name: "Interface ether4(): Operational status", key_: "net.if.status[ifOperStatus.5]", lastvalue: "2" },
             { name: "Interface ether5(): Operational status", key_: "net.if.status[ifOperStatus.6]", lastvalue: "2" },
             { name: "Interface bridgeLocal(defconf): Operational status", key_: "net.if.status[ifOperStatus.7]", lastvalue: "1" },
             { key_: "sysUpTime", lastvalue: "3600" }
@@ -233,7 +237,7 @@ function renderDashboard(data) {
     const detectedProblems = [];
 
     INTERFACE_DEFS.forEach(def => {
-        // Robust matching using exact OID key first, fallback to name matching
+        // Match exact OID key first, fallback to name matching
         const operItem = items.find(i => 
             (i.key_ && i.key_.includes(def.exactKey)) ||
             (i.name && i.name.toLowerCase().includes('operational status') && i.name.toLowerCase().includes(def.keyMatch.toLowerCase()))
