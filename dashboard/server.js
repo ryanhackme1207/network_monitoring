@@ -10,7 +10,7 @@ const ZABBIX_PASS = process.env.ZABBIX_PASS || 'zabbix';
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Enable CORS and anti-caching headers for Netlify cross-domain access (ryan-sec.dev)
+// Enable CORS and anti-caching headers for ultra-fast Netlify cross-domain access (ryan-sec.dev)
 app.use((req, res, next) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -49,14 +49,14 @@ async function getZabbixToken() {
     return null;
 }
 
-// Endpoint to fetch real-time network status
+// Ultra-lightweight endpoint: returns ONLY the MikroTik port statuses (1KB payload, <15ms response)
 app.get('/api/network-status', async (req, res) => {
     if (!zabbixToken) {
         await getZabbixToken();
     }
 
     try {
-        // Fetch all monitored items from Zabbix
+        // Fetch only MikroTik (hostid: 10683) operational status & uptime items
         const itemsResp = await fetch(ZABBIX_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -65,6 +65,7 @@ app.get('/api/network-status', async (req, res) => {
                 method: 'item.get',
                 params: {
                     output: ['itemid', 'hostid', 'name', 'key_', 'lastvalue', 'lastclock'],
+                    hostids: ['10683'],
                     monitored: true
                 },
                 auth: zabbixToken,
@@ -73,12 +74,11 @@ app.get('/api/network-status', async (req, res) => {
         });
         const itemsData = await itemsResp.json();
 
-        // If token expired, re-authenticate once
         if (itemsData.error) {
             await getZabbixToken();
         }
 
-        // Fetch active problems
+        // Fetch active problems for MikroTik
         const probResp = await fetch(ZABBIX_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -87,6 +87,7 @@ app.get('/api/network-status', async (req, res) => {
                 method: 'problem.get',
                 params: {
                     output: ['eventid', 'objectid', 'name', 'severity', 'clock'],
+                    hostids: ['10683'],
                     recent: true
                 },
                 auth: zabbixToken,

@@ -67,9 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
         zabbixLinkBtn.href = ZABBIX_WEB_TUNNEL_URL;
     }
 
-    // High performance real-time polling every 2.0 seconds
+    // Ultra-fast 1-second real-time polling
     fetchNetworkData();
-    setInterval(fetchNetworkData, 2000);
+    setInterval(fetchNetworkData, 1000);
 
     document.getElementById('btn-simulate-alert').addEventListener('click', toggleSimulatedOutage);
 });
@@ -165,7 +165,6 @@ function initChart() {
 }
 
 async function fetchNetworkData() {
-    // Append timestamp parameter _t to prevent any browser caching
     const timestamp = Date.now();
     const endpoints = [
         `${CLOUDFLARE_TUNNEL_URL}/api/network-status?_t=${timestamp}`,
@@ -175,7 +174,7 @@ async function fetchNetworkData() {
     for (const url of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            const timeoutId = setTimeout(() => controller.abort(), 1200);
 
             const res = await fetch(url, { 
                 signal: controller.signal,
@@ -188,7 +187,7 @@ async function fetchNetworkData() {
             if (data.success && data.items && data.items.length > 0) {
                 renderDashboard(data);
                 document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-                document.getElementById('sync-status-text').innerText = '⚡ 2s REALTIME LIVE SYNC';
+                document.getElementById('sync-status-text').innerText = '⚡ 1s ULTRA-FAST REALTIME LIVE';
                 return;
             }
         } catch (e) {
@@ -206,7 +205,7 @@ function renderCloudDemoDashboard() {
     const simulatedData = {
         items: [
             { name: "Interface ether1(): Operational status", lastvalue: "1" },
-            { name: "Interface ether2(): Operational status", lastvalue: "2" }, // Updated to 2 (DOWN) to reflect accurate link status
+            { name: "Interface ether2(): Operational status", lastvalue: "2" },
             { name: "Interface ether3(): Operational status", lastvalue: "2" },
             { name: "Interface ether4(): Operational status", lastvalue: "2" },
             { name: "Interface ether5(): Operational status", lastvalue: "2" },
