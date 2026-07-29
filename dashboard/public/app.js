@@ -5,6 +5,7 @@ const ZABBIX_WEB_TUNNEL_URL = 'https://string-bridal-elimination-invalid.tryclou
 const INTERFACE_DEFS = [
     {
         keyMatch: "ether1",
+        exactKey: "ifOperStatus.2",
         name: "ether1 (Internet WAN)",
         ip: "192.168.31.219",
         description: "Primary ISP Internet Gateway",
@@ -12,6 +13,7 @@ const INTERFACE_DEFS = [
     },
     {
         keyMatch: "ether2",
+        exactKey: "ifOperStatus.3",
         name: "ether2 (802.1x Auth)",
         ip: "192.168.10.1",
         description: "802.1x Authentication Port",
@@ -19,6 +21,7 @@ const INTERFACE_DEFS = [
     },
     {
         keyMatch: "ether3",
+        exactKey: "ifOperStatus.4",
         name: "ether3 (Spare Port)",
         ip: "N/A",
         description: "Unconfigured Spare Port",
@@ -26,6 +29,7 @@ const INTERFACE_DEFS = [
     },
     {
         keyMatch: "ether4",
+        exactKey: "ifOperStatus.5",
         name: "ether4 (VLAN 30)",
         ip: "192.168.30.1",
         description: "VLAN 30 Subnet Port",
@@ -33,6 +37,7 @@ const INTERFACE_DEFS = [
     },
     {
         keyMatch: "ether5",
+        exactKey: "ifOperStatus.6",
         name: "ether5 (PPPoE Server)",
         ip: "10.40.40.1",
         description: "PPPoE Server Port",
@@ -40,6 +45,7 @@ const INTERFACE_DEFS = [
     },
     {
         keyMatch: "bridge",
+        exactKey: "ifOperStatus.7",
         name: "bridge (Main LAN)",
         ip: "192.168.50.1",
         description: "Main Switch Bridge Interface",
@@ -67,9 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
         zabbixLinkBtn.href = ZABBIX_WEB_TUNNEL_URL;
     }
 
-    // Ultra-fast 1-second real-time polling
+    // Polling every 1.5 seconds with 4.0s timeout allowance
     fetchNetworkData();
-    setInterval(fetchNetworkData, 1000);
+    setInterval(fetchNetworkData, 1500);
 
     document.getElementById('btn-simulate-alert').addEventListener('click', toggleSimulatedOutage);
 });
@@ -174,7 +180,7 @@ async function fetchNetworkData() {
     for (const url of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 1200);
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
 
             const res = await fetch(url, { 
                 signal: controller.signal,
@@ -187,7 +193,7 @@ async function fetchNetworkData() {
             if (data.success && data.items && data.items.length > 0) {
                 renderDashboard(data);
                 document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-                document.getElementById('sync-status-text').innerText = '⚡ 1s ULTRA-FAST REALTIME LIVE';
+                document.getElementById('sync-status-text').innerText = '⚡ REALTIME LIVE SNMP SYNC';
                 return;
             }
         } catch (e) {
@@ -204,12 +210,12 @@ function renderCloudDemoDashboard() {
 
     const simulatedData = {
         items: [
-            { name: "Interface ether1(): Operational status", lastvalue: "1" },
-            { name: "Interface ether2(): Operational status", lastvalue: "2" },
-            { name: "Interface ether3(): Operational status", lastvalue: "2" },
-            { name: "Interface ether4(): Operational status", lastvalue: "2" },
-            { name: "Interface ether5(): Operational status", lastvalue: "2" },
-            { name: "Interface bridgeLocal(defconf): Operational status", lastvalue: "1" },
+            { name: "Interface ether1(): Operational status", key_: "net.if.status[ifOperStatus.2]", lastvalue: "1" },
+            { name: "Interface ether2(): Operational status", key_: "net.if.status[ifOperStatus.3]", lastvalue: "2" },
+            { name: "Interface ether3(): Operational status", key_: "net.if.status[ifOperStatus.4]", lastvalue: "2" },
+            { name: "Interface ether4(): Operational status", key_: "net.if.status[ifOperStatus.5]", lastvalue: "1" }, // Corrected to 1 (UP) for ether4
+            { name: "Interface ether5(): Operational status", key_: "net.if.status[ifOperStatus.6]", lastvalue: "2" },
+            { name: "Interface bridgeLocal(defconf): Operational status", key_: "net.if.status[ifOperStatus.7]", lastvalue: "1" },
             { key_: "sysUpTime", lastvalue: "3600" }
         ],
         problems: []
@@ -227,10 +233,10 @@ function renderDashboard(data) {
     const detectedProblems = [];
 
     INTERFACE_DEFS.forEach(def => {
+        // Robust matching using exact OID key first, fallback to name matching
         const operItem = items.find(i => 
-            i.name &&
-            i.name.toLowerCase().includes('operational status') && 
-            i.name.toLowerCase().includes(def.keyMatch.toLowerCase())
+            (i.key_ && i.key_.includes(def.exactKey)) ||
+            (i.name && i.name.toLowerCase().includes('operational status') && i.name.toLowerCase().includes(def.keyMatch.toLowerCase()))
         );
 
         let isPhysicallyDown = false;
