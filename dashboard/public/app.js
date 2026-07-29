@@ -1,5 +1,6 @@
 // Real-Time MikroTik Physical Port Link Telemetry & Alert Controller
 const CLOUDFLARE_TUNNEL_URL = 'https://comedy-hang-encourage-imperial.trycloudflare.com';
+const ZABBIX_WEB_TUNNEL_URL = 'https://string-bridal-elimination-invalid.trycloudflare.com';
 
 const INTERFACE_DEFS = [
     {
@@ -54,13 +55,65 @@ const historyData = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    initAuth();
     initClock();
     initChart();
+    
+    // Set Zabbix Native Console direct link
+    const zabbixLinkBtn = document.getElementById('btn-zabbix-link');
+    if (zabbixLinkBtn) {
+        zabbixLinkBtn.href = ZABBIX_WEB_TUNNEL_URL;
+    }
+
     fetchNetworkData();
     setInterval(fetchNetworkData, 3000); // Poll every 3s
 
     document.getElementById('btn-simulate-alert').addEventListener('click', toggleSimulatedOutage);
 });
+
+// Authentication System Logic
+function initAuth() {
+    const loginModal = document.getElementById('login-modal');
+    const dashboardContent = document.getElementById('dashboard-content');
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const logoutBtn = document.getElementById('btn-logout');
+
+    const isAuthenticated = sessionStorage.getItem('net_mon_auth') === 'true';
+
+    if (isAuthenticated) {
+        loginModal.style.display = 'none';
+        dashboardContent.style.display = 'block';
+    } else {
+        loginModal.style.display = 'flex';
+        dashboardContent.style.display = 'none';
+    }
+
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const user = document.getElementById('username').value.trim();
+        const pass = document.getElementById('password').value.trim();
+
+        // Default admin credentials: admin / admin123
+        if ((user === 'admin' || user === 'Admin') && pass === 'admin123') {
+            sessionStorage.setItem('net_mon_auth', 'true');
+            loginError.style.display = 'none';
+            loginModal.style.display = 'none';
+            dashboardContent.style.display = 'block';
+            showToast('🔐 LOGIN SUCCESSFUL', 'Welcome back, Network Administrator!');
+        } else {
+            loginError.style.display = 'block';
+        }
+    });
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            sessionStorage.removeItem('net_mon_auth');
+            loginModal.style.display = 'flex';
+            dashboardContent.style.display = 'none';
+        });
+    }
+}
 
 function initClock() {
     const updateTime = () => {
@@ -110,7 +163,6 @@ function initChart() {
 }
 
 async function fetchNetworkData() {
-    // 1. Try local endpoint first, fallback to Cloudflare Tunnel URL if on Netlify cloud
     const endpoints = ['/api/network-status', `${CLOUDFLARE_TUNNEL_URL}/api/network-status`];
 
     for (const url of endpoints) {
@@ -133,7 +185,6 @@ async function fetchNetworkData() {
         }
     }
 
-    // Backup rendering if tunnel is updating
     renderCloudDemoDashboard();
 }
 
@@ -166,7 +217,6 @@ function renderDashboard(data) {
     const detectedProblems = [];
 
     INTERFACE_DEFS.forEach(def => {
-        // Find matching ifOperStatus item for this interface
         const operItem = items.find(i => 
             i.name &&
             i.name.toLowerCase().includes('operational status') && 
@@ -176,7 +226,6 @@ function renderDashboard(data) {
         let isPhysicallyDown = false;
         let lastVal = operItem ? operItem.lastvalue : "2";
 
-        // ifOperStatus: 1 = UP, 2 = DOWN
         if (lastVal === "2") {
             isPhysicallyDown = true;
         }
@@ -235,7 +284,6 @@ function renderDashboard(data) {
         container.appendChild(card);
     });
 
-    // Update Uptime
     const uptimeItem = items.find(i => i.key_ && i.key_.includes('sysUpTime'));
     if (uptimeItem && uptimeItem.lastvalue) {
         const sec = parseInt(uptimeItem.lastvalue);
@@ -245,7 +293,6 @@ function renderDashboard(data) {
         document.getElementById('metric-uptime').innerText = 'Online (Active)';
     }
 
-    // Update Health Score
     if (activeDownCount > 0) {
         document.getElementById('metric-health').innerText = `${activeDownCount} PORTS UNPLUGGED`;
         document.getElementById('metric-health').className = 'text-red';
@@ -254,10 +301,7 @@ function renderDashboard(data) {
         document.getElementById('metric-health').className = 'text-green';
     }
 
-    // Render Problems list with detected unplugged ports
     renderProblems(detectedProblems);
-
-    // Update Chart
     updateChartData();
 }
 
