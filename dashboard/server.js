@@ -10,6 +10,14 @@ const ZABBIX_PASS = process.env.ZABBIX_PASS || 'zabbix';
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Disable caching for all API routes
+app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+});
+
 let zabbixToken = null;
 
 async function getZabbixToken() {
@@ -35,14 +43,14 @@ async function getZabbixToken() {
     return null;
 }
 
-// Endpoint to fetch network status
+// Endpoint to fetch real-time network status with zero latency cache
 app.get('/api/network-status', async (req, res) => {
     if (!zabbixToken) {
         await getZabbixToken();
     }
 
     try {
-        // Fetch all items from Zabbix (including physical ifOperStatus)
+        // Fetch all monitored items from Zabbix (including physical ifOperStatus)
         const itemsResp = await fetch(ZABBIX_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -58,6 +66,11 @@ app.get('/api/network-status', async (req, res) => {
             })
         });
         const itemsData = await itemsResp.json();
+
+        // If token expired, re-authenticate once
+        if (itemsData.error) {
+            await getZabbixToken();
+        }
 
         // Fetch active problems
         const probResp = await fetch(ZABBIX_URL, {

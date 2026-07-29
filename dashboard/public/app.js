@@ -49,6 +49,8 @@ const INTERFACE_DEFS = [
 
 let latencyChart = null;
 let isSimulationActive = false;
+let previousStates = {};
+
 const historyData = {
     labels: [],
     pingData: []
@@ -65,8 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
         zabbixLinkBtn.href = ZABBIX_WEB_TUNNEL_URL;
     }
 
+    // High performance real-time polling every 2.0 seconds
     fetchNetworkData();
-    setInterval(fetchNetworkData, 3000); // Poll every 3s
+    setInterval(fetchNetworkData, 2000);
 
     document.getElementById('btn-simulate-alert').addEventListener('click', toggleSimulatedOutage);
 });
@@ -94,7 +97,6 @@ function initAuth() {
         const user = document.getElementById('username').value.trim();
         const pass = document.getElementById('password').value.trim();
 
-        // Default admin credentials: admin / admin123
         if ((user === 'admin' || user === 'Admin') && pass === 'admin123') {
             sessionStorage.setItem('net_mon_auth', 'true');
             loginError.style.display = 'none';
@@ -163,25 +165,34 @@ function initChart() {
 }
 
 async function fetchNetworkData() {
-    const endpoints = ['/api/network-status', `${CLOUDFLARE_TUNNEL_URL}/api/network-status`];
+    // Append timestamp timestamp parameter _t to prevent any browser caching
+    const timestamp = Date.now();
+    const endpoints = [
+        `/api/network-status?_t=${timestamp}`, 
+        `${CLOUDFLARE_TUNNEL_URL}/api/network-status?_t=${timestamp}`
+    ];
 
     for (const url of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const timeoutId = setTimeout(() => controller.abort(), 1800);
 
-            const res = await fetch(url, { signal: controller.signal });
+            const res = await fetch(url, { 
+                signal: controller.signal,
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache' }
+            });
             clearTimeout(timeoutId);
             const data = await res.json();
 
             if (data.success && data.items && data.items.length > 0) {
                 renderDashboard(data);
                 document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-                document.getElementById('sync-status-text').innerText = '100% ACCURATE MIKROTIK SNMP LIVE';
+                document.getElementById('sync-status-text').innerText = '⚡ 2s REALTIME LIVE SYNC';
                 return;
             }
         } catch (e) {
-            // Continue to next endpoint fallback
+            // Try next endpoint fallback
         }
     }
 
@@ -233,6 +244,16 @@ function renderDashboard(data) {
         if (isSimulationActive && def.keyMatch === "ether1") {
             isPhysicallyDown = true;
         }
+
+        // Detect real-time state change and trigger toast notification automatically
+        if (previousStates[def.keyMatch] !== undefined && previousStates[def.keyMatch] !== isPhysicallyDown) {
+            if (isPhysicallyDown) {
+                showToast(`🚨 CABLE UNPLUGGED: ${def.name}`, `Physical carrier loss detected on ${def.name}!`);
+            } else {
+                showToast(`✅ CABLE RECONNECTED: ${def.name}`, `Physical link state on ${def.name} is back ONLINE!`);
+            }
+        }
+        previousStates[def.keyMatch] = isPhysicallyDown;
 
         if (isPhysicallyDown) {
             activeDownCount++;
