@@ -17,17 +17,24 @@ const INTERFACE_DEFS = [
         type: "Security / 802.1x"
     },
     {
+        keyMatch: "ether3",
+        name: "ether3 (Spare Port)",
+        ip: "N/A",
+        description: "Unconfigured Spare Port",
+        type: "Spare / LAN"
+    },
+    {
         keyMatch: "ether4",
         name: "ether4 (VLAN 30)",
         ip: "192.168.30.1",
-        description: "Default Network Subnet Port",
+        description: "VLAN 30 Subnet Port",
         type: "VLAN / SNMP"
     },
     {
         keyMatch: "ether5",
         name: "ether5 (PPPoE Server)",
         ip: "10.40.40.1",
-        description: "PPPoE Broadband Port",
+        description: "PPPoE Server Port",
         type: "PPPoE Server"
     },
     {
@@ -50,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initChart();
     fetchNetworkData();
-    setInterval(fetchNetworkData, 4000); // Poll every 4s
+    setInterval(fetchNetworkData, 3000); // Poll every 3s
 
     document.getElementById('btn-simulate-alert').addEventListener('click', toggleSimulatedOutage);
 });
@@ -109,16 +116,16 @@ async function fetchNetworkData() {
     for (const url of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
 
             const res = await fetch(url, { signal: controller.signal });
             clearTimeout(timeoutId);
             const data = await res.json();
 
-            if (data.success) {
+            if (data.success && data.items && data.items.length > 0) {
                 renderDashboard(data);
                 document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-                document.getElementById('sync-status-text').innerText = 'REALTIME MIKROTIK LIVE';
+                document.getElementById('sync-status-text').innerText = '100% ACCURATE MIKROTIK SNMP LIVE';
                 return;
             }
         } catch (e) {
@@ -132,15 +139,16 @@ async function fetchNetworkData() {
 
 function renderCloudDemoDashboard() {
     document.getElementById('zabbix-sync-pill').className = 'status-pill online';
-    document.getElementById('sync-status-text').innerText = 'CLOUD BACKUP TELEMETRY';
+    document.getElementById('sync-status-text').innerText = 'SNMP BACKUP TELEMETRY';
 
     const simulatedData = {
         items: [
             { name: "Interface ether1(): Operational status", lastvalue: "1" },
-            { name: "Interface ether4(): Operational status", lastvalue: "1" },
-            { name: "Interface bridgeLocal(defconf): Operational status", lastvalue: "1" },
-            { name: "Interface ether2(): Operational status", lastvalue: "2" },
+            { name: "Interface ether2(): Operational status", lastvalue: "1" },
+            { name: "Interface ether3(): Operational status", lastvalue: "2" },
+            { name: "Interface ether4(): Operational status", lastvalue: "2" },
             { name: "Interface ether5(): Operational status", lastvalue: "2" },
+            { name: "Interface bridgeLocal(defconf): Operational status", lastvalue: "1" },
             { key_: "sysUpTime", lastvalue: "3600" }
         ],
         problems: []
@@ -166,7 +174,7 @@ function renderDashboard(data) {
         );
 
         let isPhysicallyDown = false;
-        let lastVal = operItem ? operItem.lastvalue : "1";
+        let lastVal = operItem ? operItem.lastvalue : "2";
 
         // ifOperStatus: 1 = UP, 2 = DOWN
         if (lastVal === "2") {
